@@ -21,7 +21,7 @@ jobs:
       - name: Transplant book contents
         uses: LTLA/TrojanBookBuilder@master
         with:
-          book: LTLA/SingleRBook
+          book: LTLA/SingleRBook-base
           branch: ${{ matrix.branch }}
       - name: Committing to master
         run: | 
