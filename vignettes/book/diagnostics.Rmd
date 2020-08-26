@@ -1,0 +1,179 @@
+---
+bibliography: ref.bib
+---
+
+# Annotation diagnostics
+
+```{r, echo=FALSE, results='asis'}
+library(rebook)
+chapterPreamble(cache=TRUE)
+```
+
+## Overview
+
+In addition to the labels, `SingleR()` returns a number of helpful diagnostics about the annotation process
+that can be used to determine whether the assignments are appropriate.
+Unambiguous assignments corroborated by expression of canonical markers add confidence to the results;
+conversely, low-confidence assignments can be pruned out to avoid adding noise to downstream analyses.
+This chapter will demonstrate some of these common sanity checks on the pancreas datasets
+from Chapter \@ref(more-markers) [@muraro2016singlecell;@grun2016denovo].
+
+```{r, results='asis', echo=FALSE}
+extractCached("pancreas.Rmd", "annotation", c("sceG", "pred.grun"))
+```
+
+## Based on the scores within cells
+
+The most obvious diagnostic reported by `SingleR()` is the nested matrix of per-cell scores in the `scores` field. 
+This contains the correlation-based scores prior to any fine-tuning for each cell (row) and reference label (column).
+Ideally, we would see unambiguous assignments where, for any given cell, one label's score is clearly larger than the others.
+
+```{r}
+pred.grun$scores[1:10,]
+```
+
+To check whether this is indeed the case, 
+we use the `plotScoreHeatmap()` function to visualize the score matrix (Figure \@ref(fig:score-heatmap-grun)).
+Here, the key is to examine the spread of scores within each cell, i.e., down the columns of the heatmap.
+Similar scores for a group of labels indicates that the assignment is uncertain for those columns,
+though this may be acceptable if the uncertainty is distributed across closely related cell types.
+(Note that the assigned label for a cell may not be the visually top-scoring label if fine-tuning is applied,
+as the only the pre-tuned scores are directly comparable across all labels.)
+
+```{r score-heatmap-grun, fig.cap="Heatmap of normalized scores for the Grun dataset. Each cell is a column while each row is a label in the reference Muraro dataset. The final label (after fine-tuning) for each cell is shown in the top color bar."}
+library(SingleR)
+plotScoreHeatmap(pred.grun)
+```
+
+We can also display other metadata information for each cell by setting `clusters=` or `annotation_col=`.
+This is occasionally useful for examining potential batch effects, 
+differences in cell type composition between conditions, 
+relationship to clusters from an unsupervised analysis and so on,.
+For example, Figure \@ref(fig:score-heatmap-grun-donor) displays the donor of origin for each cell;
+we can see that each cell type has contributions from multiple donors, 
+which is reassuring as it indicates that our assignments are not (purely) driven by donor effects.
+
+```{r score-heatmap-grun-donor, fig.cap="Heatmap of normalized scores for the Grun dataset, including the donor of origin for each cell."}
+plotScoreHeatmap(pred.grun, 
+    annotation_col=as.data.frame(colData(sceG)[,"donor",drop=FALSE]))
+```
+
+```{r, echo=FALSE}
+# Making sure this is true for the major populations.
+tab <- table(sceG$donor, pred.grun$labels)
+stopifnot(colSums(tab > 0)[c("acinar", "alpha", "beta", "delta", "duct")] >= 4)
+```
+
+The `scores` matrix has several caveats associated with its interpretation.
+Only the pre-tuned scores are stored in this matrix, as scores after fine-tuning are not comparable across all labels.
+This means that the label with the highest score for a cell may not be the cell's final label if fine-tuning is applied.
+Moreover, the magnitude of differences in the scores has no clear interpretation;
+indeed, `plotScoreHeatmap()` dispenses with any faithful representation of the scores 
+and instead adjusts the values to highlight any differences between labels within each cell.
+
+## Based on the deltas across cells
+
+We identify poor-quality or ambiguous assignments based on the per-cell "delta", 
+i.e., the difference between the score for the assigned label and the median across all labels for each cell.
+Our assumption is that most of the labels in the reference are not relevant to any given cell. 
+Thus, the median across all labels can be used as a measure of the baseline correlation,
+while the gap from the assigned label to this baseline can be used as a measure of the assignment confidence.
+
+Low deltas indicate that the assignment is uncertain, possibly because the cell's true label does not exist in the reference.
+An obvious next step is to apply a threshold on the delta to filter out these low-confidence assignments.
+We use the delta rather than the assignment score as the latter is more sensitive to technical effects.
+For example, changes in library size affect the technical noise and can increase/decrease all scores for a given cell,
+while the delta is somewhat more robust as it focuses on the differences between scores within each cell.
+
+`SingleR()` will set a threshold on the delta for each label using an outlier-based strategy.
+Specifically, we identify cells with deltas that are small outliers relative to the deltas of other cells with the same label.
+This assumes that, for any given label, most cells assigned to that label are correct.
+We focus on outliers to avoid difficulties with setting a fixed threshold,
+especially given that the magnitudes of the deltas are about as uninterpretable as the scores themselves.
+Pruned labels are reported in the `pruned.labels` field where low-quality assignments are replaced with `NA`.
+
+```{r}
+to.remove <- is.na(pred.grun$pruned.labels)
+table(Label=pred.grun$labels, Removed=to.remove)
+```
+
+However, the default pruning parameters may not be appropriate for every dataset.
+For example, if one label is consistently misassigned, the assumption that most cells are correctly assigned will not be appropriate.
+In such cases, we can revert to a fixed threshold by manually calling the underlying `pruneScores()` function with `min.diff.med=`.
+The example below discards cells with deltas below an arbitrary threshold of 0.2,
+where higher thresholds correspond to greater assignment certainty.
+
+```{r}
+to.remove <- pruneScores(pred.grun, min.diff.med=0.2)
+table(Label=pred.grun$labels, Removed=to.remove)
+```
+
+This entire process can be visualized using the `plotScoreDistribution()` function,
+which displays the per-label distribution of the deltas across cells (Figure \@ref(fig:score-dist-grun)).
+We can use this plot to check that outlier detection in `pruneScores()` behaved sensibly.
+Labels with especially low deltas may warrant some additional caution in their interpretation.
+
+```{r score-dist-grun, fig.asp=1, fig.wide=TRUE, fig.cap="Distribution of deltas for the Grun dataset. Each facet represents a label in the Muraro dataset, and each point represents a cell assigned to that label (colored by whether it was pruned)."}
+plotDeltaDistribution(pred.grun)
+```
+
+If fine-tuning was performed, we can apply an even more stringent filter 
+based on the difference between the highest and second-highest scores after fine-tuning.
+Cells will only pass the filter if they are assigned to a label that is clearly distinguishable from any other label.
+In practice, this approach tends to be too conservative as assignments involving closely related labels are heavily penalized.
+
+```{r}
+to.remove2 <- pruneScores(pred.grun, min.diff.next=0.1)
+table(Label=pred.grun$labels, Removed=to.remove2)
+```
+
+## Based on marker gene expression
+
+Another simple yet effective diagnostic is to examine the expression of the marker genes for each label in the test dataset.
+The marker genes used for each label are reported in the `metadata()` of the `SingleR()` output,
+so we can simply retrieve them to visualize their (usually log-transformed) expression values across the test dataset.
+Here, we use the  `plotHeatmap()` function from `r Biocpkg("scater")` 
+to examine the expression of markers used to identify beta cells (Figure \@ref(fig:grun-beta-heat)).
+
+```{r grun-beta-heat, fig.asp=1, fig.cap="Heatmap of log-expression values in the Grun dataset for all marker genes upregulated in beta cells in the Muraro reference dataset. Assigned labels for each cell are shown at the top of the plot."}
+all.markers <- metadata(pred.grun)$de.genes
+sceG$labels <- pred.grun$labels
+
+library(scater)
+plotHeatmap(sceG, order_columns_by="labels",
+    features=unique(unlist(all.markers$beta))) 
+```
+
+If a cell in the test dataset is confidently assigned to a particular label, 
+we would expect it to have strong expression of that label's markers.
+We would also hope that those label's markers are biologically meaningful;
+in this case, we do observe strong upregulation of insulin (_INS_) in the beta cells, 
+which is reassuring and gives greater confidence to the correctness of the assignment.
+If the identified markers are not meaningful or not consistently upregulated, 
+some skepticism towards the quality of the assignments is warranted.
+
+It is straightforward to repeat this process for all labels by wrapping this code in a loop, 
+as shown below in Figure \@ref(fig:grun-beta-heat-all).
+Note that `plotHeatmap()` is not the only function that can be used for this visualization;
+we could also use `plotDots()` to create a `r CRANpkg("Seurat")`-style dot plot,
+or we could use other heatmap plotting functions such as `dittoHeatmap()` from `r Biocpkg("dittoSeq")`.
+
+```{r grun-beta-heat-all, fig.width=20, fig.height=15, fig.cap="Heatmaps of log-expression values in the Grun dataset for all marker genes upregulated in each label in the Muraro reference dataset. Assigned labels for each cell are shown at the top of each plot."}
+collected <- list()
+for (lab in unique(pred.grun$labels)) {
+    collected[[lab]] <- plotHeatmap(sceG, silent=TRUE, 
+        order_columns_by="labels", main=lab,
+        features=unique(unlist(all.markers[[lab]])))[[4]] 
+}
+do.call(gridExtra::grid.arrange, collected)
+```
+
+In general, the heatmap provides a more interpretable diagnostic visualization than the plots of scores and deltas.
+However, it does require more effort to inspect and may not be feasible for large numbers of labels.
+It is also difficult to use a heatmap to determine the correctness of assignment for closely related labels.
+
+## Session information {-}
+
+```{r, results='asis', echo=FALSE}
+prettySessionInfo()
+```

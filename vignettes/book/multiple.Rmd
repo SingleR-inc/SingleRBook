@@ -1,0 +1,282 @@
+---
+bibliography: ref.bib
+---
+
+# (PART) Advanced usage {-}
+
+# Using multiple references
+
+```{r, echo=FALSE, results='asis'}
+library(rebook)
+chapterPreamble(TRUE)
+```
+
+## Overview
+
+In some cases, we may wish to use multiple references for annotation of a test dataset.
+This yields a more comprehensive set of cell types that are not covered by any individual reference, 
+especially when differences in the resolution are considered.
+However, it is not trivial due to the presence of batch effects across references
+(from differences in technology, experimental protocol or the biological system)
+as well as differences in the annotation vocabulary between investigators.
+
+Several strategies are available to combine inferences from multiple references:
+
+- using reference-specific labels in a combined reference
+- using harmonized labels in a combined reference
+- combining scores across multiple references
+
+This chapter discusses the various strengths and weaknesses of each strategy
+and provides some practical demonstrations of each.
+Here, we will use the HPCA and Blueprint/ENCODE datasets as our references
+and (yet another) PBMC dataset as the test.
+
+```{r}
+library(TENxPBMCData)
+pbmc <- TENxPBMCData("pbmc8k")
+
+library(celldex)
+hpca <- HumanPrimaryCellAtlasData(ensembl=TRUE)
+bpe <- BlueprintEncodeData(ensembl=TRUE)
+```
+
+## Using reference-specific labels
+
+In this strategy, each label is defined in the context of its reference dataset.
+This means that a label - say, "B cell" - in reference dataset X is 
+considered to be different from a "B cell" label in reference dataset Y.
+Use of reference-specific labels is most appropriate if there are relevant biological differences between the references;
+for example, if one reference is concerned with healthy tissue while the other reference considers diseased tissue,
+it can be helpful to distinguish between the same cell type in different biological contexts.
+
+We can easily implement this approach by combining the expression matrices together 
+and pasting the reference name onto the corresponding character vector of labels. 
+This modification ensures that the downstream `SingleR()` call
+will treat each label-reference combination as a distinct entity.
+
+```{r}
+hpca2 <- hpca
+hpca2$label.main <- paste0("HPCA.", hpca2$label.main)
+
+bpe2 <- bpe
+bpe2$label.main <- paste0("BPE.", bpe2$label.main)
+
+shared <- intersect(rownames(hpca2), rownames(bpe2))
+combined <- cbind(hpca2[shared,], bpe2[shared,])
+```
+
+It is then straightforward to perform annotation with the usual methods.
+
+```{r}
+library(SingleR)
+com.res1 <- SingleR(pbmc, ref=combined, labels=combined$label.main, assay.type.test=1)
+table(com.res1$labels)
+```
+
+However, this strategy identifies markers by directly comparing expression values across references,
+meaning that the marker set is likely to contain genes responsible for uninteresting batch effects. 
+This will increase noise during the calculation of the score in each reference, 
+possibly leading to a loss of precision and a greater risk of technical variation dominating the classification results.
+The use of reference-specific labels also complicates interpretation of the results
+as the cell type is always qualified by its reference of origin.
+
+## Comparing scores across references
+
+### Combining inferences from individual references
+
+Another strategy - and the default approach implemented in `SingleR()` -
+involves performing classification separately within each reference, 
+and then collating the results to choose the label with the highest score across references. 
+This is a relatively expedient approach that avoids the need for explicit harmonization 
+while also reducing exposure to reference-specific batch effects.
+
+To use this method, we simply pass multiple objects to the `ref=` and `label=` argument in `SingleR()`.
+The combining strategy is as follows:
+
+1. The function first annotates the test dataset with each reference individually
+in the same manner as described in Section \@ref(method-description).
+This step is almost equivalent to simply looping over all individual references and running `SingleR()` on each.
+2. For each cell, the function collects its predicted labels across all references.
+In doing so, it also identifies the union of markers that are upregulated in the predicted label in each reference.
+3. The function identifies the overall best-scoring label as the final prediction for that cell.
+This step involves a recomputation of the scores across the identified marker subset 
+to ensure that these scores are derived from the same set of genes (and are thus comparable across references).
+
+The function will then return a `DataFrame` of combined results for each cell in the test dataset,
+including the overall label and the reference from which it was assigned.
+
+```{r}
+com.res2 <- SingleR(test = pbmc, assay.type.test=1,
+    ref = list(BPE=bpe, HPCA=hpca), 
+    labels = list(bpe$label.main, hpca$label.main))
+
+# Check the final label from the combined assignment.
+table(com.res2$labels) 
+
+# Check the 'winning' reference for each cell.
+table(com.res2$reference) 
+```
+
+The main appeal of this approach lies in the fact that it is based on the results of annotation with individual references.
+This avoids batch effects from comparing expression values across references;
+it reduces the need for any coordination in the label scheme between references;
+and simultaneously provides the per-reference annotations in the results.
+The last feature is particularly useful as it allows for more detailed diagnostics, troubleshooting and further analysis.
+
+```{r}
+head(com.res2$orig.results$BPE$labels)
+head(com.res2$orig.results$HPCA$labels)
+```
+
+The main downside is that it is somewhat suboptimal if there are many labels that are unique to one reference,
+as markers are not identified with the aim of distinguishing a label in one reference from another label in another reference.
+The continued lack of consistency in the labels across references also complicates interpretation of the results,
+though we can overcome this by using harmonized labels as described below.
+
+### Combined diagnostics
+
+All of the diagnostic plots in `r Biocpkg("SingleR")` will naturally operate on these combined results.
+For example, we can create a heatmap of the scores in all of the individual references
+as well as for the recomputed scores in the combined results (Figure \@ref(fig:heat-combined)).
+Note that scores are only recomputed for the labels predicted in the individual references,
+so all labels outside of those are simply set to `NA` - hence the swathes of grey.
+
+```{r heat-combined, fig.asp=2, fig.width=6, fig.cap="Heatmaps of assignment scores for each cell in the PBMC test dataset after being assigned to the Blueprint/ENCODE and Human Primary Cell Atlas reference datasets. One heatmap is shown for the recomputed scores and the scores from each individual reference. The annotation at the top of each heatmap represents the final combined prediction for each cell."}
+plotScoreHeatmap(com.res2)
+```
+
+The deltas for each individual reference can also be plotted with `plotDeltaDistribution()` (Figure \@ref(fig:delta-combined)).
+No deltas are shown for the recomputed scores as the assumption described in Section \@ref(based-on-the-deltas-across-cells)
+may not be applicable across the predicted labels from the individual references.
+For example, if all individual references suggest the same cell type with similar recomputed scores, 
+any delta would be low even though the assignment is highly confident.
+
+```{r delta-combined, fig.asp=2, fig.width=6, fig.cap="Distribution of the deltas across cells in the PBMC test dataset for each label in the Blueprint/ENCODE and Human Primary Cell Atlas reference datasets. Each point represents a cell that was assigned to that label in the combined results, colored by whether it was pruned or not in the corresponding individual reference."}
+plotDeltaDistribution(com.res2)
+```
+
+We can similarly extract marker genes to use in heatmaps as described in Section \@ref(based-on-marker-gene-expression).
+As annotation was performed to each individual reference,
+we can simply extract the marker genes from the nested `DataFrame`s as shown in Figure \@ref(fig:pbmc-mono-heat).
+
+```{r pbmc-mono-heat, fig.asp=1, fig.cap="Heatmap of log-expression values in the PBMC dataset for all marker genes upregulated in monocytes in the Blueprint/ENCODE and Human Primary Cell Atlas reference datasets. Combined labels for each cell are shown at the top."}
+hpca.markers <- metadata(com.res2$orig.results$HPCA)$de.genes
+bpe.markers <- metadata(com.res2$orig.results$BPE)$de.genes
+mono.markers <- unique(unlist(hpca.markers$Monocyte, bpe.markers$Monocytes))
+
+library(scater)
+plotHeatmap(logNormCounts(pbmc), 
+    order_columns_by=list(I(com.res2$labels)),
+    features=mono.markers)
+```
+
+## Using harmonized labels
+
+### Sharing information during marker detection
+
+One of the major problems with using multiple references is the presence of study-specific nomenclature.
+For example, the concept of a B cell may be annotated as `B cells` in one reference, 
+`B_cells` in another reference, and then `B` and `B-cell` and so on in other references.
+We can overcome this by using harmonized labels where the same cell type is assigned as the same label across references,
+simplifying interpretation and ensuring that irrelevant discrepancies in labelling do not intefere with downstream analysis.
+
+Many of the `r Biocpkg("SingleR")` reference datasets already have their labels 
+mapped to the [Cell Ontology](https://www.ebi.ac.uk/ols/ontologies/cl),
+which provides a standard vocabulary to refer to the same cell type across diverse datasets.
+We will describe the utility of Cell Ontology terms in more detail in Chapter \@ref(exploiting-the-cell-ontology);
+at this point, the key idea is that the same term is used for the same conceptual cell type in each reference.
+To simplify interpretation, we set `cell.ont="nonna"` to remove all samples that could not be mapped to the ontology.
+
+```{r}
+hpca.ont <- HumanPrimaryCellAtlasData(ensembl=TRUE, cell.ont="nonna")
+bpe.ont <- BlueprintEncodeData(ensembl=TRUE, cell.ont="nonna")
+
+# Using the same sets of genes:
+shared <- intersect(rownames(hpca.ont), rownames(bpe.ont))
+hpca.ont <- hpca.ont[shared,]
+bpe.ont <- bpe.ont[shared,]
+
+# Showing the top 10 most frequent terms:
+head(sort(table(hpca.ont$label.ont)), 10)
+head(sort(table(bpe.ont$label.ont)), 10)
+```
+
+The simplest way to take advantage of the standardization in terminology
+is to use `label.ont` in place of `label.main` in the previous section's `SingleR()` call.
+This yields annotations that have follow the same vocabulary regardless of the reference used for assignment.
+
+```{r}
+com.res3a <- SingleR(test = pbmc, assay.type.test=1,
+    ref = list(BPE=bpe.ont, HPCA=hpca.ont), 
+    labels = list(bpe.ont$label.ont, hpca.ont$label.ont))
+
+table(Label=com.res3a$labels, Reference=com.res3a$reference)
+```
+
+A more advanced approach is to share information across references during the marker detection stage.
+This is done by favoring genes the exhibit upregulation consistently in multiple references,
+which increases the likelihood that those markers will generalize to other datasets.
+For classic marker detection, we achieve this by calling `getClassicMarkers()` to obtain markers for use in `SingleR()`;
+the same effect can be achieved for test-based methods in `r Biocpkg("scran")` functions by setting `block=`.
+We then use these improved markers by passing them to `genes=` as described in Section \@ref(defining-custom-markers).
+In this case, we specify `com.markers` twice in a list to indicate that we are using them for both of our references.
+
+```{r}
+com.markers <- getClassicMarkers(
+    ref = list(BPE=bpe.ont, HPCA=hpca.ont), 
+    labels = list(bpe.ont$label.ont, hpca.ont$label.ont))
+
+com.res3b <- SingleR(test = pbmc, assay.type.test=1,
+    ref = list(BPE=bpe.ont, HPCA=hpca.ont), 
+    labels = list(bpe.ont$label.ont, hpca.ont$label.ont),
+    genes = list(com.markers, com.markers))
+
+table(Label=com.res3b$labels, Reference=com.res3b$reference)
+```
+
+It is worth noting that, in the above code, the DE genes are still identified _within_ each reference
+and then the statistics are merged _across_ references to identify the top markers.
+This ensures that we do not directly compare expression values across references,
+which reduces the susceptibility of marker detection to batch effects.
+
+The most obvious problem with this approach is that it assumes that harmonized labels are available.
+This is usually not true and requires some manual mapping of the author-provided labels to a common vocabulary.
+The mapping process also runs the risk of discarding relevant information about the biological status
+(e.g., activation status, disease condition) if there is no obvious counterpart for that state in the ontology.
+
+### Manual label harmonization
+
+The `matchReferences()` function provides a simple approach for label harmonization between two references.
+Each reference is used to annotate the other and the probability of mutual assignment between each pair of labels is computed,
+i.e., for each pair of labels, what is the probability that a cell with one label is assigned the other _and_ vice versa?
+Probabilities close to 1 in Figure \@ref(fig:heat-harmony) indicate there is a 1:1 relation between that pair of labels;
+on the other hand, an all-zero probability vector indicates that a label is unique to a particular reference.
+
+```{r heat-harmony, fig.wide=TRUE, fig.asp=1, fig.cap="Heatmap of mutual assignment probabilities between the Blueprint/ENCODE reference dataset (labels in rows) and the Human primary cell atlas reference (labels in columns)."}
+library(SingleR)
+bp.se <- BlueprintEncodeData()
+hpca.se <- HumanPrimaryCellAtlasData()
+
+matched <- matchReferences(bp.se, hpca.se,
+    bp.se$label.main, hpca.se$label.main)
+pheatmap::pheatmap(matched, col=viridis::plasma(100))
+```
+
+This function can be used to guide harmonization to enforce a consistent vocabulary between two sets of labels.
+However, some manual intervention is still required in this process
+given the ambiguities posed by differences in biological systems and technologies.
+In the example above, neurons are considered to be unique to each reference 
+while smooth muscle cells in the HPCA data are incorrectly matched to fibroblasts in the Blueprint/ENCODE data.
+CD4^+^ and CD8^+^ T cells are also both assigned to "T cells", 
+so some decision about the acceptable resolution of the harmonized labels is required here.
+
+As an aside, we can also use this function to identify the matching clusters between two independent scRNA-seq analyses.
+This involves substituting the cluster assignments as proxies for the labels,
+allowing us to match up clusters and integrate conclusions from multiple datasets 
+without the difficulties of batch correction and reclustering.
+
+## Session info {-}
+
+```{r, echo=FALSE, results='asis'}
+prettySessionInfo()
+```

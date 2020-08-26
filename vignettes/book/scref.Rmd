@@ -1,0 +1,195 @@
+---
+bibliography: ref.bib
+---
+
+# Controlling marker detection {#more-markers}
+
+```{r, echo=FALSE, results='asis'}
+library(rebook)
+chapterPreamble(TRUE)
+```
+
+## Overview
+
+One of the most important steps in `r Biocpkg("SingleR")` (beyond the choice of reference, of course)
+is the derivation of the marker genes used in the score calculation.
+We have already introduced the classic approach in the previous chapter,
+but it is similarly straightforward to perform marker detection with conventional statistical tests.
+In particular, we identify top-ranked markers based on pairwise Wilcoxon rank sum tests or $t$-tests between labels;
+this allows us to account for the variability across cells to choose genes that are robustly upregulated in each label.
+
+The availability of variance-aware marker detection methods is most relevant for reference datasets
+that contain a reasonable number (i.e., at least two) of replicate samples for each label.
+An obvious use case is that of single-cell datasets that are used as a reference to annotate other single-cell datasets.
+It is also possible for users to supply their own custom marker lists to `SingleR()`,
+facilitating incorporation of prior biological knowledge into the annotation process.
+We will demonstrate these capabilities below in this chapter.
+
+## Annotation with test-based marker detection
+
+To demonstrate, we will use two human pancreas scRNA-seq datasets from the `r Biocpkg("scRNAseq")` package.
+The aim is to use one pre-labelled dataset to annotate the other unlabelled dataset.
+First, we set up the @muraro2016singlecell dataset to be our reference,
+computing log-normalized expression values as discussed in Section \@ref(choices-of-assay-data).
+
+```{r}
+library(scRNAseq)
+sceM <- MuraroPancreasData()
+
+# Removing unlabelled cells or cells without a clear label.
+sceM <- sceM[,!is.na(sceM$label) & sceM$label!="unclear"] 
+
+library(scater)
+sceM <- logNormCounts(sceM)
+sceM
+
+# Seeing the available labels in this dataset.
+table(sceM$label)
+```
+
+We then set up our test dataset from @grun2016denovo, applying some basic quality control as discusssed
+[here](https://osca.bioconductor.org/grun-human-pancreas-cel-seq2.html#quality-control-8) 
+and in Section \@ref(interaction-with-quality-control).
+We also compute the log-transformed values here, not because it is strictly necessary
+but so that we don't have to keep on typing `assay.type.test=1` in later calls to `SingleR()`.
+
+```{r}
+sceG <- GrunPancreasData()
+
+sceG <- addPerCellQC(sceG)
+qc <- quickPerCellQC(colData(sceG), 
+    percent_subsets="altexps_ERCC_percent",
+    batch=sceG$donor,
+    subset=sceG$donor %in% c("D17", "D7", "D2"))
+sceG <- sceG[,!qc$discard]
+
+sceG <- logNormCounts(sceG)
+sceG
+```
+
+We run `SingleR()` as described previously but with a marker detection mode that considers the variance of expression across cells.
+Here, we will use the Wilcoxon ranked sum test to identify the top markers for each pairwise comparison between labels.
+This is slower but more appropriate for single-cell data compared to the default marker detection algorithm,
+as the latter may fail for low-coverage data where the median for each label is often zero.
+
+```{r}
+library(SingleR)
+pred.grun <- SingleR(test=sceG, ref=sceM, labels=sceM$label, de.method="wilcox")
+table(pred.grun$labels)
+```
+
+```{r, echo=FALSE, results="hide"}
+# Sanity check that we're synchronized with the workflow.
+old.vals <- pred.grun
+extractCached("pancreas.Rmd", "annotation", "pred.grun")
+stopifnot(identical(old.vals, pred.grun))
+```
+
+By default, the function will take the top `de.n` (default: 10) genes from each pairwise comparison between labels.
+A larger number of markers increases the robustness of the annotation by ensuring that relevant genes are not omitted,
+especially if the reference dataset has study-specific effects that cause uninteresting genes to dominate the top set. 
+However, this comes at the cost of increasing noise and computational time.
+
+```{r}
+library(SingleR)
+pred.grun <- SingleR(test=sceG, ref=sceM, labels=sceM$label, 
+    de.method="wilcox", de.n=50)
+table(pred.grun$labels)
+```
+
+## Defining custom markers
+
+The marker detection in `SingleR()` is built on top of the testing framework in `r Biocpkg("scran")`,
+so most options in `?pairwiseWilcox` and friends can be applied via the `de.args=` option.
+For example, we could use the $t$-test and test against a log-fold change threshold with `de.args=list(lfc=1)`.
+
+```{r}
+library(SingleR)
+pred.grun2 <- SingleR(test=sceG, ref=sceM, labels=sceM$label, 
+    de.method="t", de.args=list(lfc=1))
+table(pred.grun2$labels)
+```
+
+However, users can also construct their own marker lists with any DE testing machinery.
+For example, we can perform pairwise binomial tests to identify genes that are differentially detected 
+(i.e., have differences in the proportion of cells with non-zero counts) between labels in the reference Muraro dataset.
+We then take the top 10 marker genes from each pairwise comparison,
+obtaining a list of lists of character vectors containing the identities of the markers for that comparison.
+
+```{r}
+library(scran)
+out <- pairwiseBinom(counts(sceM), sceM$label, direction="up")
+markers <- getTopMarkers(out$statistics, out$pairs, n=10)
+
+# Upregulated in acinar compared to alpha:
+markers$acinar$alpha
+
+# Upregulated in alpha compared to acinar:
+markers$alpha$acinar
+```
+
+Once we have this list of lists, we supply it to `SingleR()` via the `genes=` argument,
+which causes the function to bypass the internal marker detection to use the supplied gene sets instead.
+The most obvious benefit of this approach is that the user can achieve greater control of the markers,
+allowing integration of prior biological knowledge to obtain more relevant genes and a more robust annotation.
+
+```{r}
+pred.grun2b <- SingleR(test=sceG, ref=sceM, labels=sceM$label, genes=markers)
+table(pred.grun2b$labels)
+```
+
+In some cases, markers may only be available for specific labels rather than for pairwise comparisons between labels.
+This is accommodated by supplying a named list of character vectors to `genes`.
+Note that this is likely to be less powerful than the list-of-lists approach as information about pairwise differences is discarded.
+
+```{r}
+# Creating label-specific markers.
+label.markers <- lapply(markers, unlist)
+label.markers <- lapply(label.markers, unique)
+str(label.markers)
+
+pred.grun2c <- SingleR(test=sceG, ref=sceM, labels=sceM$label, genes=label.markers)
+table(pred.grun2c$labels)
+```
+
+## Pseudo-bulk aggregation
+
+Single-cell reference datasets provide a like-for-like comparison to our test single-cell datasets, 
+yielding a more accurate classification of the cells in the latter (hopefully).
+However, there are frequently many more samples in single-cell references compared to bulk references, 
+increasing the computational work involved in classification.
+We overcome this by aggregating cells into one "pseudo-bulk" sample per label (e.g., by averaging across log-expression values) 
+and using that as the reference profile, which allows us to achieve the same efficiency as the use of bulk references.
+
+The obvious cost of this approach is that we discard potentially useful information 
+about the distribution of cells within each label.
+Cells that belong to a heterogeneous population may not be correctly assigned if they are far from the population center.
+To preserve some of this information, we perform $k$-means clustering within each label
+to create pseudo-bulk samples that are representative of a particular region of the expression space (i.e., vector quantization).
+We create $\sqrt{N}$ clusters given a label with $N$ cells, 
+which provides a reasonable compromise between reducing computational work and preserving the label's internal distribution.
+
+To enable this aggregation, we simply set `aggr.ref=TRUE` in the `SingleR()` call.
+This uses the `aggregateReference()` function to perform $k$-means clustering _within_ each label
+(typically after principal components analysis on the log-expression matrix, for greater speed)
+and average expression values for each within-label cluster.
+Note that marker detection is still performed on the unaggregated data 
+so as to make full use of the distribution of expression values across cells.
+
+```{r}
+set.seed(100) # for the k-means step.
+pred.grun3 <- SingleR(test=sceG, ref=sceM, labels=sceM$label, 
+    de.method="wilcox", aggr.ref=TRUE)
+table(pred.grun3$labels)
+```
+
+Obviously, the aggregation itself requires computational work so setting `aggr.ref=TRUE` in `SingleR()` itself may not improve speed.
+Rather, the real power of this approach lies in pre-aggregating the reference dataset
+so that it can be repeatedly applied to quickly annotate multiple test datasets.
+This approach is discussed in more detail in Chapter \@ref(advanced-options).
+
+## Session information {-}
+
+```{r, echo=FALSE, results='asis'}
+prettySessionInfo()
+```

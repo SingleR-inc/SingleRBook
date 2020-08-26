@@ -1,0 +1,151 @@
+---
+bibliography: ref.bib
+---
+
+# Advanced options
+
+```{r, echo=FALSE, results='asis'}
+library(rebook)
+chapterPreamble(TRUE)
+```
+
+## Preconstructed indices
+
+Advanced users can split the `SingleR()` workflow into two separate training and classification steps.
+This means that training (e.g., marker detection, assembling of nearest-neighbor indices) only needs to be performed once
+for any reference.
+The resulting data structure can then be re-used across multiple classifications with different test datasets, 
+provided the gene annotation in the test dataset is identical to or a superset of the genes in the training set.
+To illustrate, we will consider the DICE reference dataset [@diceRef] from the `r Biocpkg("celldex")` package.
+
+```{r}
+library(celldex)
+dice <- DatabaseImmuneCellExpressionData(ensembl=TRUE)
+dice
+table(dice$label.fine)
+```
+
+Let's say we want to use the DICE reference to annotate the PBMC dataset from Chapter \@ref(introduction).
+
+```{r}
+library(TENxPBMCData)
+sce <- TENxPBMCData("pbmc3k")
+```
+
+```{r, echo=FALSE}
+# Because I don't want to sit around waiting for this!
+counts(sce) <- as(counts(sce), "dgCMatrix")
+```
+
+We use the `trainSingleR()` function to do all the necessary calculations 
+that are independent of the test dataset.
+(Almost; see comments below about `common`.)
+This yields a list of various components that contains all identified marker genes
+and precomputed rank indices to be used in the score calculation.
+We can also turn on aggregation with `aggr.ref=TRUE` (Section \@ref(pseudo-bulk aggregation))
+to further reduce computational work.
+
+```{r}
+common <- intersect(rownames(sce), rownames(dice))
+
+library(SingleR)
+set.seed(2000)
+trained <- trainSingleR(dice[common,], labels=dice$label.fine, aggr.ref=TRUE)
+```
+
+We then use the `trained` object to annotate our dataset of interest through the `classifySingleR()` function.
+As we can see, this yields exactly the same result as applying `SingleR()` directly.
+The advantage here is that `trained` can be re-used for multiple `classifySingleR()` calls - 
+possibly on different datasets - without having to repeat unnecessary steps when the reference is unchanged.
+
+```{r}
+pred <- classifySingleR(sce, trained, assay.type=1)
+table(pred$labels)
+
+# Comparing to the direct approach.
+set.seed(2000)
+direct <- SingleR(sce, ref=dice, labels=dice$label.fine,
+    assay.type.test=1, aggr.ref=TRUE)
+identical(pred$labels, direct$labels)
+```
+
+```{r, echo=FALSE}
+stopifnot(identical(pred$labels, direct$labels))
+```
+
+The big caveat is that the universe of genes in the test dataset must be a superset of that the reference.
+This is the reason behind the intersection to `common` genes and the subsequent subsetting of `dice`.
+Practical use of preconstructed indices is best combined with some prior information about the gene-level annotation;
+for example, we might know that we always use a particular version of the Ensembl gene models,
+so we would filter out any genes in the reference dataset that are not in our test datasets.
+
+## Parallelization
+
+Parallelization is an obvious approach to increasing annotation throughput.
+This is done using the framework in the `r Biocpkg("BiocParallel")` package, 
+which provides several options for parallelization depending on the available hardware.
+On POSIX-compliant systems (i.e., Linux and MacOS), the simplest method is to use forking 
+by passing `MulticoreParam()` to the `BPPARAM=` argument:
+
+```{r}
+library(BiocParallel)
+pred2a <- SingleR(sce, ref=dice, assay.type.test=1, labels=dice$label.fine,
+    BPPARAM=MulticoreParam(8)) # 8 CPUs.
+```
+
+Alternatively, one can use separate processes with `SnowParam()`, 
+which is slower but can be used on all systems - including Windows, our old nemesis.
+
+```{r}
+pred2b <- SingleR(sce, ref=dice, assay.type.test=1, labels=dice$label.fine,
+    BPPARAM=SnowParam(8))
+identical(pred2a$labels, pred2b$labels) 
+```
+
+```{r, echo=FALSE}
+stopifnot(identical(pred2a$labels, pred2b$labels))
+```
+
+When working on a cluster, passing `BatchtoolsParam()` to `SingleR()` allows us to
+seamlessly interface with various job schedulers like SLURM, LSF and so on.
+This permits heavy-duty parallelization across hundreds of CPUs for highly intensive jobs,
+though often some configuration is required - 
+see the `r Biocpkg("BiocParallel", "BiocParallel_BatchtoolsParam.pdf", "vignette")` for more details.
+
+## Approximate algorithms
+
+It is possible to sacrifice accuracy to squeeze more speed out of `r Biocpkg("SingleR")`.
+The most obvious approach is to simply turn off the fine-tuning with `fine.tune=FALSE`,
+which avoids the time-consuming fine-tuning iterations.
+When the reference labels are well-separated, this is probably an acceptable trade-off.
+
+```{r}
+pred3a <- SingleR(sce, ref=dice, assay.type.test=1, 
+    labels=dice$label.main, fine.tune=FALSE)
+table(pred3a$labels)
+```
+
+Another approximation is based on the fact that the initial score calculation is done using a nearest-neighbors search.
+By default, this is an exact seach but we can switch to an approximate algorithm via the `BNPARAM=` argument.
+In the example below, we use the [Annoy algorithm](https://github.com/spotify/annoy) 
+via the `r Biocpkg("BiocNeighbors")` framework, which yields mostly similar results.
+(Note, though, that the Annoy method does involve a considerable amount of overhead,
+so for small jobs it will actually be slower than the exact search.)
+
+```{r}
+library(BiocNeighbors)
+pred3b <- SingleR(sce, ref=dice, assay.type.test=1, 
+    labels=dice$label.main, fine.tune=FALSE, # for comparison with pred3a.
+    BNPARAM=AnnoyParam())
+table(pred3a$labels, pred3b$labels)
+```
+
+```{r, echo=FALSE}
+stopifnot(mean(pred3a$labels==pred3b$labels) > 0.95)
+```
+
+## Session information {-}
+
+```{r, echo=FALSE, results='asis'}
+prettySessionInfo()
+```
