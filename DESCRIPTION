@@ -1,6 +1,6 @@
 Package: SingleRBookWrapper 
 Title: Compilation Wrapper for the SingleR Book
-Version: 0.99.1
+Version: 0.99.2
 Date: 2020-08-26
 Authors@R: person(role=c("aut", "cre"), "Aaron", "Lun", email = "infinite.monkeys.with.keyboards@gmail.com")
 Description: 
