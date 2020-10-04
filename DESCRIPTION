@@ -1,6 +1,6 @@
-Package: SingleRBook
+Package: SingleRBookWrapper
 Title: The Book of SingleR
-Version: 0.99.8
+Version: 0.99.9
 Date: 2020-10-04
 Authors@R: person('Aaron', 'Lun', role = c('aut', 'cre'), email="infinite.monkeys.with.keyboards@gmail.com")
 Description: 
@@ -31,7 +31,7 @@ Imports: AnnotationHub,
     SingleR,
     TENxPBMCData,
     viridis
-biocViews: Workflow
+biocViews: ImmunoOncologyWorkflow,  Workflow,  SingleCellWorkflow
 Workflow: True
 VignetteBuilder: knitr
 Depends: R (>= 4.0)
