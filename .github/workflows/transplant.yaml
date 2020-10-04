@@ -6,6 +6,9 @@ on:
 
 name: transplantation
 
+env:
+  PKGNAME: SingleRBookWrapper
+
 jobs:
   transplantation:
     name: "Incorporating the latest changes"
@@ -24,7 +27,7 @@ jobs:
         with:
           book: LTLA/SingleRBook-base
           branch: ${{ matrix.branch }}
-          name: SingleRBookWrapper
+          name: ${{ env.PKGNAME }}
           biocViews: "ImmunoOncologyWorkflow, Workflow, SingleCellWorkflow"
       - name: Committing to master
         run: | 
@@ -40,6 +43,6 @@ jobs:
       - name: Pushing to Bioconductor
         run : |
           ssh-keyscan -t rsa git.bioconductor.org >> /home/runner/.ssh/known_hosts
-          git remote add upstream git@git.bioconductor.org:packages/OSCA
+          git remote add upstream git@git.bioconductor.org:packages/${{ env.PKGNAME }}
           git pull upstream ${{ matrix.branch }}        
           git push upstream ${{ matrix.branch }}
