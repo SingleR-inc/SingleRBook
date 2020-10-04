@@ -1,6 +1,6 @@
 Package: SingleRBookWrapper
 Title: The Book of SingleR
-Version: 0.99.10
+Version: 0.99.11
 Date: 2020-10-04
 Authors@R: person('Aaron', 'Lun', role = c('aut', 'cre'), email="infinite.monkeys.with.keyboards@gmail.com")
 Description: 
@@ -11,7 +11,7 @@ Description:
 License: CC BY
 Encoding: UTF-8
 URL: https://github.com/LTLA/SingleRBook
-Imports: AnnotationHub,
+Suggests: AnnotationHub,
     BiocFileCache,
     BiocNeighbors,
     BiocParallel,
@@ -34,4 +34,3 @@ Imports: AnnotationHub,
 biocViews: ImmunoOncologyWorkflow,  Workflow,  SingleCellWorkflow
 Workflow: True
 VignetteBuilder: knitr
-Depends: R (>= 4.0)
