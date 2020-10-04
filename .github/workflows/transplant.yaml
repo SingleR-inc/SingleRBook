@@ -23,6 +23,8 @@ jobs:
         with:
           book: LTLA/SingleRBook-base
           branch: ${{ matrix.branch }}
+          name: SingleRBookWrapper
+          biocViews: "ImmunoOncologyWorkflow, Workflow, SingleCellWorkflow"
       - name: Committing to master
         run: | 
           git config --local user.email "action@github.com"
