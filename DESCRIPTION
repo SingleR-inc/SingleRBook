@@ -1,6 +1,6 @@
 Package: SingleRBookWrapper
 Title: The Book of SingleR
-Version: 0.99.9
+Version: 0.99.10
 Date: 2020-10-04
 Authors@R: person('Aaron', 'Lun', role = c('aut', 'cre'), email="infinite.monkeys.with.keyboards@gmail.com")
 Description: 

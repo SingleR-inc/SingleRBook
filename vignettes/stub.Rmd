@@ -1,5 +1,5 @@
 ---
-title: Source code for SingleRBookWrapper
+title: Source code for SingleRBook
 package: SingleRBookWrapper
 date: "`r Sys.Date()`"
 vignette: >
