@@ -1,6 +1,6 @@
 ---
 title: Source code for SingleRBook
-package: SingleRBookWrapper
+package: SingleRBook
 date: "`r Sys.Date()`"
 vignette: >
   %\VignetteIndexEntry{Source code}
