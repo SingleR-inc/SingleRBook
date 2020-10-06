@@ -1,7 +1,7 @@
 Package: SingleRBook
 Title: The Book of SingleR
-Version: 0.99.12
-Date: 2020-10-05
+Version: 0.99.13
+Date: 2020-10-06
 Authors@R: person('Aaron', 'Lun', role = c('aut', 'cre'), email="infinite.monkeys.with.keyboards@gmail.com")
 Description: 
     Comprehensive guide to using the SingleR Bioconductor package
@@ -24,6 +24,7 @@ Suggests: AnnotationHub,
     ontoProc,
     pheatmap,
     rebook,
+    rmarkdown,
     scater,
     scran,
     scRNAseq,
