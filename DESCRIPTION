@@ -11,7 +11,10 @@ Description:
 License: CC BY
 Encoding: UTF-8
 URL: https://github.com/LTLA/SingleRBook
-Suggests: AnnotationHub,
+biocViews: ImmunoOncologyWorkflow,  Workflow,  SingleCellWorkflow
+Workflow: True
+VignetteBuilder: knitr
+Depends: AnnotationHub,
     BiocFileCache,
     BiocNeighbors,
     BiocParallel,
@@ -32,6 +35,3 @@ Suggests: AnnotationHub,
     SingleR,
     TENxPBMCData,
     viridis
-biocViews: ImmunoOncologyWorkflow,  Workflow,  SingleCellWorkflow
-Workflow: True
-VignetteBuilder: knitr
