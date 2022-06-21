@@ -1,7 +1,6 @@
-# If you're reading this...
+# The Book of SingleR 
 
-You're probably at the wrong place!
+This contains the source code for the SingleR book.
+It uses the [**rebook**](https://bioconductor.org/packages/rebook) package to manage the book compilation and deployment.
 
-If you're looking for the compiled book, go to https://ltla.github.io/SingleRBook.
-
-If you're looking for the book sources, go to https://github.com/LTLA/SingleRBook-base.
+If you're looking for the compiled book, go [here](https://bioconductor.org/books/release/SingleRBook/) instead.
