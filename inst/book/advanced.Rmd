@@ -42,7 +42,7 @@ that are independent of the test dataset.
 (Almost; see comments below about `common`.)
 This yields a list of various components that contains all identified marker genes
 and precomputed rank indices to be used in the score calculation.
-We can also turn on aggregation with `aggr.ref=TRUE` (Section \@ref(pseudo-bulk aggregation))
+We can also turn on aggregation with `aggr.ref=TRUE` (Section \@ref(pseudo-bulk-aggregation))
 to further reduce computational work.
 
 ```{r}
