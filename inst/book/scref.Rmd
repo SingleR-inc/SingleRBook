@@ -2,7 +2,7 @@
 bibliography: ref.bib
 ---
 
-# Controlling marker detection {#more-markers}
+# Using single-cell references {#sc-mode}
 
 ```{r, echo=FALSE, results='asis'}
 library(rebook)
@@ -11,17 +11,12 @@ chapterPreamble(TRUE)
 
 ## Overview
 
-One of the most important steps in `r Biocpkg("SingleR")` (beyond the choice of reference, of course)
-is the derivation of the marker genes used in the score calculation.
-We have already introduced the classic approach in the previous chapter,
-but it is similarly straightforward to perform marker detection with conventional statistical tests.
+`r Biocpkg("SingleR")` can also be applied to reference datasets derived from single-cell RNA-seq experiments.
+This involves the same algorithm as that used in the classic mode (Chapter \@ref(classic-mode))
+but performs marker detection with conventional statistical tests instead of the log-fold change.
 In particular, we identify top-ranked markers based on pairwise Wilcoxon rank sum tests or $t$-tests between labels;
 this allows us to account for the variability across cells to choose genes that are robustly upregulated in each label.
-
-The availability of variance-aware marker detection methods is most relevant for reference datasets
-that contain a reasonable number (i.e., at least two) of replicate samples for each label.
-An obvious use case is that of single-cell datasets that are used as a reference to annotate other single-cell datasets.
-It is also possible for users to supply their own custom marker lists to `SingleR()`,
+Users can also supply their own custom marker lists to `SingleR()`,
 facilitating incorporation of prior biological knowledge into the annotation process.
 We will demonstrate these capabilities below in this chapter.
 
@@ -181,6 +176,15 @@ set.seed(100) # for the k-means step.
 pred.grun3 <- SingleR(test=sceG, ref=sceM, labels=sceM$label, 
     de.method="wilcox", aggr.ref=TRUE)
 table(pred.grun3$labels)
+```
+
+Advanced users can also perform the aggregation manually by calling the `aggregateReference()` function.
+This returns a `SummarizedExperiment` object for use as `ref=` in the `SingleR()` function.
+
+```{r}
+set.seed(100)
+aggregated <- aggregateReference(sceM, sceM$label)
+aggregated
 ```
 
 Obviously, the aggregation itself requires computational work so setting `aggr.ref=TRUE` in `SingleR()` itself may not improve speed.
