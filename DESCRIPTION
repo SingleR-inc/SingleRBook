@@ -15,7 +15,6 @@ biocViews: ImmunoOncologyWorkflow,  Workflow,  SingleCellWorkflow
 Workflow: True
 VignetteBuilder: knitr
 Depends: AnnotationHub,
-    BiocFileCache,
     BiocNeighbors,
     BiocParallel,
     BiocStyle,

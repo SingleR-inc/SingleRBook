@@ -18,6 +18,12 @@ fig:grun-beta-heat2,annotation-diagnostics.html,4.5
 fig:grun-beta-heat-all,annotation-diagnostics.html,4.6
 fig:grun-label-clusters,annotation-diagnostics.html,4.7
 bibliography,bibliography.html,11
+classic-mode,classic-mode.html,2
+overview,classic-mode.html,2.1
+annotating-the-test-dataset,classic-mode.html,2.2
+interaction-with-quality-control,classic-mode.html,2.3
+choices-of-assay-data,classic-mode.html,2.4
+reference-choice,classic-mode.html,2.5
 contributors,contributors.html,10
 cross-annotating-mouse-brains,cross-annotating-mouse-brains.html,9
 loading-the-data-1,cross-annotating-mouse-brains.html,9.1
@@ -38,11 +44,6 @@ motivation,introduction.html,1.1
 method-description,introduction.html,1.2
 quick-start,introduction.html,1.3
 where-to-get-help,introduction.html,1.4
-more-markers,more-markers.html,3
-overview-1,more-markers.html,3.1
-annotation-with-test-based-marker-detection,more-markers.html,3.2
-defining-custom-markers,more-markers.html,3.3
-pseudo-bulk-aggregation,more-markers.html,3.4
 pancreas-case-study,pancreas-case-study.html,8
 loading-the-data,pancreas-case-study.html,8.1
 applying-the-annotation,pancreas-case-study.html,8.2
@@ -53,6 +54,11 @@ fig:unref-pancreas-delta-dist,pancreas-case-study.html,8.2
 fig:unref-pancreas-marker-heat,pancreas-case-study.html,8.3
 fig:unref-pancreas-label-clusters,pancreas-case-study.html,8.4
 fig:unref-pancreas-label-tsne,pancreas-case-study.html,8.5
+sc-mode,sc-mode.html,3
+overview-1,sc-mode.html,3.1
+annotation-with-test-based-marker-detection,sc-mode.html,3.2
+defining-custom-markers,sc-mode.html,3.3
+pseudo-bulk-aggregation,sc-mode.html,3.4
 using-multiple-references,using-multiple-references.html,5
 overview-3,using-multiple-references.html,5.1
 using-reference-specific-labels,using-multiple-references.html,5.2
@@ -66,9 +72,3 @@ fig:heat-combined,using-multiple-references.html,5.1
 fig:delta-combined,using-multiple-references.html,5.2
 fig:pbmc-mono-heat,using-multiple-references.html,5.3
 fig:heat-harmony,using-multiple-references.html,5.4
-using-the-classic-mode,using-the-classic-mode.html,2
-overview,using-the-classic-mode.html,2.1
-annotating-the-test-dataset,using-the-classic-mode.html,2.2
-interaction-with-quality-control,using-the-classic-mode.html,2.3
-choices-of-assay-data,using-the-classic-mode.html,2.4
-reference-choice,using-the-classic-mode.html,2.5
