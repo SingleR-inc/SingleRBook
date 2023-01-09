@@ -9,15 +9,36 @@ jobs:
     runs-on: ubuntu-latest
     container: bioconductor/bioconductor_docker:devel
     steps:
-      - name: Check out repo
-        uses: actions/checkout@v2
-      - name: Update DESCRIPTION and Makefile
+      - name: Get site library path
+        run: |
+          location=$(R --slave -e "cat(.libPaths()[1])")
+          echo "R_PKG_DIR=${location}" >> $GITHUB_ENV
+
+      - name: Cache packages
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.R_PKG_DIR }}
+          key: installed-packages
+
+      - name: Install packages
         run: |
           BiocManager::install('rebook')
+        shell: Rscript {0}
+
+      - name: Check out repo
+        run: |
+          git clone "https://oauth2:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" ./book
+          cd ./book && git checkout "${{ github.ref_name }}"
+
+      - name: Update DESCRIPTION and Makefile
+        working-directory: ./book
+        run: |
           rebook::updateDependencies("inst/book", path='DESCRIPTION') 
           rebook::configureBook(prefix="SingleR")
         shell: Rscript {0}
-      - name: Committing to master
+
+      - name: Committing 
+        working-directory: ./book
         run: | 
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
