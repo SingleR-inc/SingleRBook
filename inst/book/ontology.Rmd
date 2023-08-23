@@ -24,7 +24,7 @@ that we can query for various pieces of information.
 ```{r}
 # TODO: wrap in utility function.
 library(ontoProc)
-cl <- getCellOnto()
+cl <- getOnto("cellOnto")
 cl
 ```
 
