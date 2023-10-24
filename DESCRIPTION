@@ -1,6 +1,6 @@
 Package: SingleRBook
 Title: The Book of SingleR
-Version: 1.12.0
+Version: 1.13.0
 Date: 2023-01-09
 Authors@R: person('Aaron', 'Lun', role = c('aut', 'cre'), email="infinite.monkeys.with.keyboards@gmail.com")
 Description: 
