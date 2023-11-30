@@ -183,14 +183,9 @@ simplifying interpretation and ensuring that irrelevant discrepancies in labelli
 Many of the `r Biocpkg("SingleR")` reference datasets already have their labels 
 mapped to the [Cell Ontology](https://www.ebi.ac.uk/ols/ontologies/cl),
 which provides a standard vocabulary to refer to the same cell type across diverse datasets.
-The key idea is that the same term is used for the same conceptual cell type in each reference.
-To simplify interpretation, we set `cell.ont="nonna"` to remove all samples that could not be mapped to the ontology.
-
-<!-- 
 We will describe the utility of Cell Ontology terms in more detail in Chapter \@ref(exploiting-the-cell-ontology);
 at this point, the key idea is that the same term is used for the same conceptual cell type in each reference.
 To simplify interpretation, we set `cell.ont="nonna"` to remove all samples that could not be mapped to the ontology.
--->
 
 ```{r}
 hpca.ont <- HumanPrimaryCellAtlasData(ensembl=TRUE, cell.ont="nonna")
