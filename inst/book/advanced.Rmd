@@ -37,20 +37,18 @@ sce <- TENxPBMCData("pbmc3k")
 counts(sce) <- as(counts(sce), "dgCMatrix")
 ```
 
-We use the `trainSingleR()` function to do all the necessary calculations 
-that are independent of the test dataset.
-(Almost; see comments below about `common`.)
+We use the `trainSingleR()` function to do all the necessary calculations that are independent of the test dataset.
 This yields a list of various components that contains all identified marker genes
 and precomputed rank indices to be used in the score calculation.
 We can also turn on aggregation with `aggr.ref=TRUE` (Section \@ref(pseudo-bulk-aggregation))
 to further reduce computational work.
+Note that we need the identities of the genes in the test dataset (hence, `test.genes=`) to ensure that our chosen markers will actually be present in the test.
 
 ```{r}
-common <- intersect(rownames(sce), rownames(dice))
-
 library(SingleR)
 set.seed(2000)
-trained <- trainSingleR(dice[common,], labels=dice$label.fine, aggr.ref=TRUE)
+trained <- trainSingleR(dice, labels=dice$label.fine, 
+    test.genes=rownames(sce), aggr.ref=TRUE)
 ```
 
 We then use the `trained` object to annotate our dataset of interest through the `classifySingleR()` function.
@@ -72,12 +70,6 @@ identical(pred$labels, direct$labels)
 ```{r, echo=FALSE}
 stopifnot(identical(pred$labels, direct$labels))
 ```
-
-The big caveat is that the universe of genes in the test dataset must be a superset of that the reference.
-This is the reason behind the intersection to `common` genes and the subsequent subsetting of `dice`.
-Practical use of preconstructed indices is best combined with some prior information about the gene-level annotation;
-for example, we might know that we always use a particular version of the Ensembl gene models,
-so we would filter out any genes in the reference dataset that are not in our test datasets.
 
 ## Parallelization
 
