@@ -14,9 +14,8 @@ fig:score-heatmap-grun,annotation-diagnostics.html,4.1
 fig:score-heatmap-grun-donor,annotation-diagnostics.html,4.2
 fig:score-dist-grun,annotation-diagnostics.html,4.3
 fig:grun-beta-heat,annotation-diagnostics.html,4.4
-fig:grun-beta-heat2,annotation-diagnostics.html,4.5
-fig:grun-beta-heat-all,annotation-diagnostics.html,4.6
-fig:grun-label-clusters,annotation-diagnostics.html,4.7
+fig:grun-beta-heat-all,annotation-diagnostics.html,4.5
+fig:grun-label-clusters,annotation-diagnostics.html,4.6
 bibliography,bibliography.html,11
 classic-mode,classic-mode.html,2
 overview,classic-mode.html,2.1
