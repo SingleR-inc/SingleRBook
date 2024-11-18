@@ -131,15 +131,12 @@ table(Label=pred.grun$labels, Removed=to.remove2)
 
 Another simple yet effective diagnostic is to examine the expression of the marker genes for each label in the test dataset.
 The marker genes used for each label are reported in the `metadata()` of the `SingleR()` output, so we can simply retrieve them to visualize their (usually log-transformed) expression values across the test dataset.
-In Figure \@ref(fig:grun-beta-heat), we use the  `plotHeatmap()` function from `r Biocpkg("scater")` to examine the expression of markers used to identify beta cells.
+This is done automatically by the  `plotMarkerHeatmap()` function, which visualizes marker expression for a particular label (Figure \@ref(fig:grun-beta-heat)).
+To avoid showing too many genes, this function only focuses on the most relevant markers,
+i.e., those that are upregulated in the test dataset for the label of interest and thus are responsible for driving the classification of cells to that label.
 
-```{r grun-beta-heat, fig.asp=1, fig.cap="Heatmap of log-expression values in the Grun dataset for all marker genes upregulated in beta cells in the Muraro reference dataset. Assigned labels for each cell are shown at the top of the plot."}
-all.markers <- metadata(pred.grun)$de.genes
-beta.markers <- unique(unlist(all.markers$beta))
-sceG$labels <- pred.grun$labels
-
-library(scater)
-plotHeatmap(sceG, order_columns_by="labels", features=beta.markers)
+```{r grun-beta-heat, fig.asp=1, fig.cap="Heatmap of log-expression values in the Grun dataset for the top marker genes upregulated in beta cells in the Muraro reference dataset. Assigned labels for each cell are shown at the top of the plot."}
+plotMarkerHeatmap(pred.grun, sceG, "beta")
 ```
 
 If a cell in the test dataset is confidently assigned to a particular label, 
@@ -150,41 +147,20 @@ which is reassuring and gives greater confidence to the correctness of the assig
 If the identified markers are not meaningful or not consistently upregulated, 
 some skepticism towards the quality of the assignments is warranted.
 
-```{r, echo=FALSE}
-# Sanity check.
+```{r, fig.keep="none", echo=FALSE}
+plt <- plotMarkerHeatmap(pred.grun, sceG, "beta", silent=TRUE)
+beta.markers <- rownames(plt$gtable$grob[[2]]$children$GRID.rect$gp$fill)
 stopifnot(any(grepl("^INS_", beta.markers)))
-```
-
-In practice, the heatmap may be overwhelmingly large if there too many reference-derived markers.
-To resolve this, we can prune the set of markers to focus on the most interesting genes based on their test expression profiles.
-Figure \@ref(fig:grun-beta-heat2) is limited to the top genes with the strongest evidence for upregulation in our test dataset using the assigned labels; such genes are effectively markers for beta cells in both the reference _and_ test datasets.
-As a diagnostic plot, this is much more amenable to quick inspection to check that the expected genes are present.
-
-```{r grun-beta-heat2, fig.asp=1, fig.cap="Heatmap of log-expression values in the Grun dataset for all marker genes upregulated in beta cells in the Muraro reference dataset, pruned to those that are also upregulated in the assigned cells in the Grun dataset. Assigned labels for each cell are shown at the top of the plot."}
-# Taking the first 20 reference markers that are the top empirical markers.
-library(scran)
-empirical.markers <- findMarkers(sceG, sceG$labels, direction="up")
-m <- match(beta.markers, rownames(empirical.markers$beta))
-m <- beta.markers[rank(m) <= 20]
-
-library(scater)
-plotHeatmap(sceG, order_columns_by="labels", features=m)
 ```
 
 It is straightforward to repeat this process for all labels by wrapping this code in a loop, 
 as shown below in Figure \@ref(fig:grun-beta-heat-all).
-Note that `plotHeatmap()` is not the only function that can be used for this visualization;
-we could also use `plotDots()` to create a `r CRANpkg("Seurat")`-style dot plot,
-or we could use other heatmap plotting functions such as `dittoHeatmap()` from `r Biocpkg("dittoSeq")`.
 
-```{r grun-beta-heat-all, fig.width=20, fig.height=15, fig.cap="Heatmaps of log-expression values in the Grun dataset for all marker genes upregulated in each label in the Muraro reference dataset. Assigned labels for each cell are shown at the top of each plot."}
+```{r grun-beta-heat-all, fig.width=20, fig.height=15, fig.cap="Heatmaps of log-expression values in the Grun dataset for the top marker genes upregulated in each label in the Muraro reference dataset. Assigned labels for each cell are shown at the top of each plot."}
 collected <- list()
 for (lab in unique(pred.grun$labels)) {
-    lab.markers <- unique(unlist(all.markers[[lab]]))
-    m <- match(lab.markers, rownames(empirical.markers[[lab]]))
-    m <- lab.markers[rank(m) <= 20]
-    collected[[lab]] <- plotHeatmap(sceG, silent=TRUE, 
-        order_columns_by="labels", main=lab, features=m)[[4]]
+    collected[[lab]] <- plotMarkerHeatmap(pred.grun, sceG, lab,
+        main=lab, silent=TRUE)[[4]]
 }
 do.call(gridExtra::grid.arrange, collected)
 ```
