@@ -153,8 +153,8 @@ beta.markers <- rownames(plt$gtable$grob[[2]]$children$GRID.rect$gp$fill)
 stopifnot(any(grepl("^INS_", beta.markers)))
 ```
 
-It is straightforward to repeat this process for all labels by wrapping this code in a loop, 
-as shown below in Figure \@ref(fig:grun-beta-heat-all).
+We can easily create a diagnostic plot for each label by wrapping the above code in a loop (Figure \@ref(fig:grun-beta-heat-all)).
+This allows us to quickly visualize the quality of each label's assignments.
 
 ```{r grun-beta-heat-all, fig.width=20, fig.height=15, fig.cap="Heatmaps of log-expression values in the Grun dataset for the top marker genes upregulated in each label in the Muraro reference dataset. Assigned labels for each cell are shown at the top of each plot."}
 collected <- list()
@@ -165,7 +165,18 @@ for (lab in unique(pred.grun$labels)) {
 do.call(gridExtra::grid.arrange, collected)
 ```
 
-In general, the heatmap provides a more interpretable diagnostic visualization than the plots of scores and deltas.
+Users can also customize the visualization by re-using the heatmap configuration from `configureMarkerHeatmap()` with other plotting functions,
+e.g., `plotDots()` from `r Biocpkg("scater")` (to create a `r CRANpkg("Seurat")`-style dot plot) or `dittoHeatmap()` from `r Biocpkg("dittoSeq")`.
+For example, Figure \@ref(fig:grun-epsilon-heat) creates a per-label heatmap to ensure that the visualization is not dominated by the most abundant labels.
+
+```{r grun-epsilon-heat, fig.asp=1, fig.cap="Heatmap of log-expression values in the Grun dataset for the top marker genes upregulated in epsilon cells in the Muraro reference dataset. Assigned labels for each cell are shown at the top of the plot."}
+config <- configureMarkerHeatmap(pred.grun, sceG, "epsilon")
+mat <- assay(sceG, "logcounts")[head(config$rows, 20), config$columns]
+aggregated <- scuttle::summarizeAssayByGroup(mat, config$predictions)
+pheatmap::pheatmap(assay(aggregated), cluster_col=FALSE)
+```
+
+In general, the marker expression heatmap provides a more interpretable diagnostic visualization than the plots of scores and deltas.
 However, it does require more effort to inspect and may not be feasible for large numbers of labels.
 It is also difficult to use a heatmap to determine the correctness of assignment for closely related labels.
 
