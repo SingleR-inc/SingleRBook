@@ -94,14 +94,14 @@ table(pred.grun$labels)
 
 ## Defining custom markers
 
-The marker detection in `SingleR()` is built on top of the testing framework in `r Biocpkg("scran")`,
-so most options in `?pairwiseWilcox` and friends can be applied via the `de.args=` option.
-For example, we could use the $t$-test and test against a log-fold change threshold with `de.args=list(lfc=1)`.
+The marker detection in `SingleR()` is based on `r Biocpkg("scrapper")`,
+so most options in `?scoreMarkers` and friends can be applied via the `de.args=` option.
+For example, we could apply a log-fold change threshold with `de.args=list(threshold=1)`.
 
 ```{r}
 library(SingleR)
 pred.grun2 <- SingleR(test=sceG, ref=sceM, labels=sceM$label, 
-    de.method="t", de.args=list(lfc=1))
+    de.method="t", de.args=list(threshold=1))
 table(pred.grun2$labels)
 ```
 
